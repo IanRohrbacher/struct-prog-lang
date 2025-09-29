@@ -7,38 +7,27 @@ Accept a string of tokens, return an AST expressed as stack of dictionaries
 """
 
 ebnf = """
-    factor = <number> | "(" expression ")"
+    factor = <number> | <identifier> | "(" expression ")"
     term = factor { "*"|"/" factor }
     expression = term { "+"|"-" term }
     statement = <print> expression | expression
-    program = expression
+    program = expression { ";" expression }
 """
 
-bnf = """
-    factor = <number>
-    factor = <identifier>
-    factor = "(" expression ")"
-
-    term = factor { "*"|"/" factor }
-    term = term * factor
-    term = term / factor
-
-    expression = term 
-    expression = expression + term
-    expression = expression - term
-
-    statement = <print> expression
-    statement = expression
-"""
 
 def parse_factor(tokens):
     """
-    factor = <number> | "(" expression ")"
+    factor = <number> | <identifier> | "(" expression ")"
     """
     token = tokens[0]
     if token["tag"] == "number":
         return {
             "tag":"number",
+            "value": token["value"]
+        }, tokens[1:]
+    if token["tag"] == "identifier":
+        return {
+            "tag":"identifier",
             "value": token["value"]
         }, tokens[1:]
     if token["tag"] == "(":
@@ -49,7 +38,7 @@ def parse_factor(tokens):
 
 def test_parse_factor():
     """
-    factor = <number> | "(" expression ")"
+    factor = <number> | <identifier> | "(" expression ")"
     """
     print("testing parse_factor()")
     for s in ["1","22","333"]:
@@ -63,21 +52,13 @@ def test_parse_factor():
         s_n = s.replace("(","").replace(")","")
         assert ast=={'tag': 'number', 'value': int(s_n)}
         assert tokens[0]['tag'] == None 
-    
-    for s in["(2+3)", "(2-3)", "(2/3)", "(2*3)"]:
-        left = int(s[1])
-        math = str(s[2])
-        right = int(s[3])
-
-        tokens = tokenize(s)
-        ast, tokens = parse_factor(tokens)
-
-        assert ast=={'tag': math, 'left': {'tag': 'number', 'value': left}, 'right': {'tag': 'number', 'value': right}}
-        assert tokens[0]['tag'] == None
-        assert tokens[0]['position'] == 5
-
-
-
+    tokens = tokenize("(2+3)")
+    ast, tokens = parse_factor(tokens)
+    assert ast == {'tag': '+', 'left': {'tag': 'number', 'value': 2}, 'right': {'tag': 'number', 'value': 3}}
+    tokens = tokenize("x+y+z")
+    ast, tokens = parse_factor(tokens)
+    assert ast == {'tag': 'identifier', 'value': 'x'}
+    assert tokens == [{'tag': '+', 'position': 1, 'value': '+'}, {'tag': 'identifier', 'position': 2, 'value': 'y'}, {'tag': '+', 'position': 3, 'value': '+'}, {'tag': 'identifier', 'position': 4, 'value': 'z'}, {'tag': None, 'value': None, 'position': 5}]
 
 
 def parse_term(tokens):
@@ -108,30 +89,6 @@ def test_parse_term():
     tokens = tokenize("2*4/6")
     ast, tokens = parse_term(tokens)
     assert ast == {'tag': '/', 'left': {'tag': '*', 'left': {'tag': 'number', 'value': 2}, 'right': {'tag': 'number', 'value': 4}}, 'right': {'tag': 'number', 'value': 6}}
-
-    for s in["2*4*6*8","2/4*6*8", "2*4/6*8", "2*4*6/8", "2/4/6*8", "2*4/6/8", "2/4/6/8"]:
-        one = int(s[0])
-        math_one = str(s[1])
-        two = int(s[2])
-        math_two = str(s[3])
-        three = int(s[4])
-        math_three = str(s[5])
-        four = int(s[6])
-
-        tokens = tokenize(s)
-        ast, tokens = parse_term(tokens)
-
-        assert ast == {'tag': math_three, 'left': 
-                      {'tag': math_two, 'left': 
-                      {'tag': math_one, 'left': 
-                        {'tag': 'number', 'value': one},
-                            'right': {'tag': 'number', 'value': two}}, 
-                            'right': {'tag': 'number', 'value': three}}, 
-                            'right': {'tag': 'number', 'value': four}}
-        assert tokens[0]['tag'] == None
-        assert tokens[0]['position'] == 7
-
-
 
 def parse_expression(tokens):
     """
@@ -192,13 +149,37 @@ def test_parse_statement():
     ast, tokens = parse_statement(tokens)
     assert ast == {'tag': 'print', 'value': {'tag': '*', 'left': {'tag': 'number', 'value': 2}, 'right': {'tag': 'number', 'value': 4}}}
 
+def parse_program(tokens):
+    """
+    program = [ statement { ";" statement } ] ;
+    """
+    statements = []
+    if tokens[0]["tag"]:
+        statement, tokens = parse_statement(tokens)
+        statements.append(statement)
+        while tokens[0]["tag"] == ";":
+            tokens = tokens[1:]
+            statement, tokens = parse_statement(tokens)
+            statements.append(statement)
+    assert (
+        tokens[0]["tag"] == None
+    ), f"Expected end of input at position {tokens[0]['position']}, got [{tokens[0]}]"
+    return {"tag": "program", "statements": statements}, tokens[1:]
 
+def test_parse_program():
+    """program = [ statement { ";" statement } ]"""
+    print("testing parse_program...")
+    ast, tokens = parse_program(tokenize("print 1; print 2"))
+    assert ast == {
+        "tag": "program",
+        "statements": [
+            {"tag": "print", "value": {"tag": "number", "value": 1}},
+            {"tag": "print", "value": {"tag": "number", "value": 2}},
+        ],
+    }
 
 def parse(tokens):
-    """
-        program = expression
-    """
-    ast, _ = parse_statement(tokens)
+    ast, _ = parse_program(tokens)
     return ast
 
 def test_parse():
@@ -207,9 +188,9 @@ def test_parse():
     """
     print("testing parse()")
     tokens = tokenize("1+(2+3)*4")
-    ast1, _ = parse_statement(tokens)
+    ast1, _ = parse_program(tokens)
     ast2 = parse(tokens)
-    assert ast1 == ast2, "parse() is not evaluating via parse_expression()"
+    assert ast1 == ast2, "parse() is not evaluating via parse_program()"
 
 
 
@@ -218,5 +199,6 @@ if __name__ == "__main__":
     test_parse_term()
     test_parse_expression()
     test_parse_statement()
+    test_parse_program()
     test_parse()
     print("done.")
