@@ -32,6 +32,9 @@ def evaluate(ast, environment={}):
         while evaluate(ast["condition"], environment):
             evaluate(ast["do"], environment)
         return None
+    if ast["tag"] == "irohrbac":
+        environment["_kentid_"] = "irohrbac@kent.edu"
+        return None
     if ast["tag"] == "assign":
         target = ast["target"]
         assert target["tag"] == "identifier"
@@ -51,7 +54,7 @@ def evaluate(ast, environment={}):
             parent_environment = environment["$parent"]
             if ast["value"] in parent_environment:
                 return parent_environment[ast["value"]]
-        raise Exception(f"Value [{ast["value"]}] not found in environment {environment}.")
+        raise Exception(f"Value [{ast['value']}] not found in environment {environment}.")
     if ast["tag"] in ["+", "-", "*", "/"]:
         left_value = evaluate(ast["left"], environment)
         right_value = evaluate(ast["right"], environment)

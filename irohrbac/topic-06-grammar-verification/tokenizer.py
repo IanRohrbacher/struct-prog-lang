@@ -6,6 +6,7 @@ patterns = [
     [r"if","if"],
     [r"else","else"],
     [r"while","while"],
+    [r"irohrbac","irohrbac"],
     [r"continue","continue"],
     [r"break","break"],
     [r"return","return"],
